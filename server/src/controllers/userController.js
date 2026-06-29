@@ -11,7 +11,25 @@ const createUser = async (req, res) => {
             branch,
             graduationYear
         } = req.body;
-
+        const validationError = !name || !email || !password;
+        if(validationError){
+            return res.status(400).json({
+                success:false,
+                message:"Validation failed",
+                errors: { 
+                    "name": "Name is required",
+                    "password": "Password is required" 
+                }
+            })
+        }
+        const existingUser = await User.findOne({ email});
+        if (existingUser){
+            return res.status(409).json({
+                success:false,
+                message:"Email already exists"
+            })
+        }
+        
         // Create and save the user in MongoDB
         const user = await User.create({
             name,
