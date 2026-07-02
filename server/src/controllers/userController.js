@@ -1,5 +1,6 @@
 const User = require("../models/User");
 const bcrypt=require("bcrypt");
+const jwt = require("jsonwebtoken");
 const createUser = async (req, res) => {
     try {
         // Extract user data from the request body
@@ -103,6 +104,13 @@ const loginUser=async(req,res)=>{
         });
     }
 }
+const token= jwt.sign({
+    userId:existingUser._id,
+    email:existingUser.email
+},
+process.env.JWT_SECRET,{
+    expiresIn:"1h"
+})
 module.exports = {
     createUser,loginUser
 };
