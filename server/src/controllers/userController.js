@@ -185,6 +185,53 @@ const updateProfile = async (req, res) => {
         });
     }
 };
+const updatePassword =async(req,res)=>{
+    try{
+        const {oldPassword,newPassword}=req.body;
+        if(!oldPassword || !newPassword){
+            return res.status(400).json({
+                success:false,
+                message:"Old password and new password are required."
+            });
+        }
+        const userId=req.user.userId;
+        const user=await User.findById(userId);
+        if(!user){
+            return res.status(404).json({
+                success:false,
+                message:"User not found"
+            });
+        }
+        const passwordMatch=await bcrypt.compare(oldPassword,user.password);
+        if(!passwordMatch){
+            return res.status(401).json({
+                success:false,
+                message:"Old password is incorrect."
+            });
+        }
+        const passwordMatchNew=await bcrypt.compare(newPassword,user.password);
+        if(passwordMatchNew){
+            return res.status(400).json({
+                success:false,
+                message:"New password cannot be same as old password."
+            });
+        }
+        const hashedPassword=await bcrypt.hash(newPassword, 10);
+        user.password=hashedPassword;
+        await user.save();
+        return res.status(200).json({
+            success:true,
+            message:"Password updated successfully."
+        });
+    }catch(error){
+        console.log(error);
+        return res.status(500).json({
+            success:false,
+            message:"Internal server error"
+        })
+    }
+
+}
 module.exports = {
-    createUser,loginUser,getProfile,updateProfile
+    createUser,loginUser,getProfile,updateProfile,updatePassword
 };
