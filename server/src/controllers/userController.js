@@ -133,6 +133,58 @@ const getProfile = async (req, res) => {
         });
     }
 }
+const updateProfile = async (req, res) => {
+    try {
+        const userId = req.user.userId;
+        const {
+            name,
+            college,
+            branch,
+            graduationYear
+        } = req.body;
+
+        const updatedUser = await User.findByIdAndUpdate(
+            userId,
+            {
+                name,
+                college,
+                branch,
+                graduationYear
+            },
+            {
+                new: true
+            }
+        );
+
+        if (!updatedUser) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found"
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Profile updated successfully",
+            user: {
+                id: updatedUser._id,
+                name: updatedUser.name,
+                email: updatedUser.email,
+                college: updatedUser.college,
+                branch: updatedUser.branch,
+                graduationYear: updatedUser.graduationYear
+            }
+        });
+
+    } catch (error) {
+        console.error(error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error"
+        });
+    }
+};
 module.exports = {
-    createUser,loginUser,getProfile
+    createUser,loginUser,getProfile,updateProfile
 };
