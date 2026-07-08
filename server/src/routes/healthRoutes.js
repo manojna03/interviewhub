@@ -5,7 +5,7 @@ const {
     getHealthStatus,getAboutInfo
 } = require("../controllers/healthControllers");
 
-router.get("/health", getHealthStatus);
+router.get("/", getHealthStatus);
 router.get("/about",getAboutInfo);
 
 module.exports = router;
