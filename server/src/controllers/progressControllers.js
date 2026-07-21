@@ -105,37 +105,82 @@ const getAllProgress = async (req, res) => {
     try {
 
         const userId = req.user.id;
-        const {status}=req.query;
-        const { difficulty, platform } = req.query;
-        const { sort } = req.query;
+        const {status, sort}=req.query;
+        const { search } = req.query;
         const page = Math.max(1, parseInt(req.query.page) || 1);
         const limit = Math.max(1, parseInt(req.query.limit) || 10);
         const skip = (page - 1) * limit;
 
-        const query = {user: userId};
+        if (status && !ALLOWED_STATUS.includes(status)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid status."
+            });
+        }
+
+        if (sort && !["latest", "oldest"].includes(sort)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid sort option. Use latest or oldest."
+            });
+        }
+        const matchStage = {user: new mongoose.Types.ObjectId(userId)};
         if(status){
-            query.status = status;
+            matchStage.status=status;
         }
-        if(difficulty){
-            query.difficulty = difficulty;
+        const pipeline = [{
+            $match: matchStage
+        },
+        {
+            $lookup: {
+                from: "questions",
+                localField: "question",
+                foreignField: "_id",
+                as: "questionData"
+            }
+        },
+        {
+            $unwind:"$questionData"
+        }];
+        if(search){
+            pipeline.push({
+                $match:{
+                    "questionData.title":{
+                        $regex: search,
+                        $options: "i"
+                    }
+                }
+            });
         }
-        if(platform){
-            query.platform = platform;
-        }
+
         const sortOption = sort === "oldest" ? 1 : -1;
-        
-        const progressList = await Progress.find({
-            query
-        })
-            .sort({ updatedAt: sortOption  })
-            .populate("question", "title difficulty platform")
-            .populate("user", "name")
-            .skip(skip)
-            .limit(limit)
-            .lean();
-        const totalProgress = await Progress.countDocuments({
-            user: userId
+        pipeline.push({
+            $facet: {
+                data: [
+                    {
+                        $sort: {
+                            updatedAt: sortOption
+                        }
+                    },
+                    {
+                        $skip: skip
+                    },
+                    {
+                        $limit: limit
+                    }
+                ],
+                totalCount: [
+                    {
+                        $count: "count"
+                    }
+                ]
+            }
         });
+        const result = await Progress.aggregate(pipeline);
+
+        const progressList = result[0]?.data || [];
+
+        const totalFilteredProgress =result[0]?.totalCount[0]?.count || 0;
 
         const completedQuestions = await Progress.countDocuments({
             user: userId,
@@ -146,11 +191,11 @@ const getAllProgress = async (req, res) => {
             success: true,
             message: "Progress fetched successfully.",
             progressList,
-            totalProgress,
+            totalFilteredProgress,
             completedQuestions,
             currentPage: page,
-            totalPages: Math.ceil(totalProgress / limit),
-            hasNextPage: page < Math.ceil(totalProgress / limit),
+            totalPages: Math.ceil(totalFilteredProgress / limit),
+            hasNextPage: page < Math.ceil(totalFilteredProgress / limit),
             hasPrevPage: page > 1
         });
 
@@ -164,6 +209,7 @@ const getAllProgress = async (req, res) => {
         });
     }
 };
+
 const getProgressByQuestion=async(req,res)=>{
     try{
         const userId = req.user.id;
@@ -200,7 +246,8 @@ const getProgressByQuestion=async(req,res)=>{
             message:"Internal server error."
         })
     }
-}
+};
+
 const deleteProgress=async (req,res)=>{
     try{
         const {questionId}=req.params;
@@ -240,7 +287,8 @@ const deleteProgress=async (req,res)=>{
             message:"Internal server error."
         })
     }
-}
+};
+
 const getProgressStats = async (req, res) => {
   try{
     const userId = req.user.id;
@@ -277,7 +325,8 @@ const getProgressStats = async (req, res) => {
         message:"Internal server error"
     });
 }
-}
+};
+
 module.exports = {
     createProgress,
     getAllProgress,
