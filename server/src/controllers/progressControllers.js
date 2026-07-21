@@ -105,20 +105,34 @@ const getAllProgress = async (req, res) => {
     try {
 
         const userId = req.user.id;
+        const {status}=req.query;
+        const { difficulty, platform } = req.query;
+        const { sort } = req.query;
         const page = Math.max(1, parseInt(req.query.page) || 1);
         const limit = Math.max(1, parseInt(req.query.limit) || 10);
         const skip = (page - 1) * limit;
 
+        const query = {user: userId};
+        if(status){
+            query.status = status;
+        }
+        if(difficulty){
+            query.difficulty = difficulty;
+        }
+        if(platform){
+            query.platform = platform;
+        }
+        const sortOption = sort === "oldest" ? 1 : -1;
+        
         const progressList = await Progress.find({
-            user: userId
+            query
         })
-            .sort({ updatedAt: -1 })
+            .sort({ updatedAt: sortOption  })
             .populate("question", "title difficulty platform")
             .populate("user", "name")
             .skip(skip)
             .limit(limit)
             .lean();
-
         const totalProgress = await Progress.countDocuments({
             user: userId
         });
@@ -187,8 +201,85 @@ const getProgressByQuestion=async(req,res)=>{
         })
     }
 }
+const deleteProgress=async (req,res)=>{
+    try{
+        const {questionId}=req.params;
+        const userId = req.user.id;
+        if (!mongoose.Types.ObjectId.isValid(questionId)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid Question ID."
+            });
+        }
+        const question = await Question.findById(questionId);
+        if (!question) {
+            return res.status(404).json({
+                success: false,
+                message: "Question not found."
+            });
+        }
+        const progress = await Progress.findOne({
+            question: questionId,
+            user:userId
+        })
+        if (!progress) {
+            return res.status(404).json({
+            success: false,
+            message: "Progress not found." });
+        }
+        await progress.deleteOne();
+        return res.status(200).json({
+            success:true,
+            message:"Progress deleted successfully"
+        })
+    }catch(error){
+        console.error(error);
+
+        return res.status(500).json({
+            success:false,
+            message:"Internal server error."
+        })
+    }
+}
+const getProgressStats = async (req, res) => {
+  try{
+    const userId = req.user.id;
+    const stats = await Progress.aggregate([
+        {
+            $match:{
+                user:new mongoose.Types.ObjectId(userId)
+            }
+        },
+        {
+             $group: {
+                 _id: "$status",
+                 count: { $sum: 1}
+                }
+        }
+        
+    ]);
+    const total = await Progress.countDocuments({user: userId});
+    const formattedStats = {
+    total:0,
+    started: 0,
+    in_progress: 0,
+    completed:  0 };
+    stats.forEach(item => {formattedStats[item._id] = item.count;});
+    return res.status(200).json({
+        success:true,
+        stats: formattedStats
+    });
+}catch(error){
+    console.error(error);
+
+    return res.status(500).json({
+        success:false,
+        message:"Internal server error"
+    });
+}
+}
 module.exports = {
     createProgress,
     getAllProgress,
-    getProgressByQuestion
+    getProgressByQuestion,getProgressStats
 };
